@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Firefly Garden Experiment – Fitts' Law (Enhanced)</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top, #1b2845 0, #05060b 55%, #020308 100%);
+      user-select: none;
+      touch-action: none;
+    }
+
+    #canvas {
+      display: none;
+    }
+
+    #menu {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.82);
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    #menu h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    #menu p {
+      max-width: 600px;
+      margin: 5px 0 15px 0;
+      line-height: 1.4;
+      font-size: 16px;
+    }
+
+    .menu-row {
+      margin: 5px 0;
+    }
+
+    .menu-row label {
+      display: inline-block;
+      min-width: 160px;
+      text-align: right;
+      margin-right: 8px;
+    }
+
+    .menu-input {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+      min-width: 180px;
+    }
+
+    .btn {
+      margin-top: 18px;
+      padding: 12px 26px;
+      background: #ffdf37;
+      color: #222;
+      border-radius: 999px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 12px rgba(0,0,0,0.5);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.7);
+      background: #ffe96a;
+    }
+
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: none;
+      color: #fff;
+      font-size: 16px;
+      pointer-events: none;
+    }
+
+    #ui .panel {
+      background: rgba(0,0,0,0.45);
+      border-radius: 10px;
+      padding: 8px 12px;
+      display: inline-block;
+      margin-right: 8px;
+    }
+
+    #progressBarOuter {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 10px;
+      width: 260px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.15);
+      overflow: hidden;
+    }
+
+    #progressBarInner {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ffdf37, #ff8e37);
+    }
+
+    #message {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 16px;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      border-radius: 999px;
+      font-size: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="menu">
+  <h1>✨ Firefly Garden Experiment ✨</h1>
+  <p>
+    Catch the glowing fireflies as quickly and accurately as you can.<br>
+    This experiment helps us study how children interact using mouse and touch input.
+  </p>
+
+  <div class="menu-row">
+    <label for="pid">Participant ID:</label>
+    <input id="pid" class="menu-input" placeholder="e.g. C01" />
+  </div>
+
+  <div class="menu-row">
+    <label for="age">Age:</label>
+    <input id="age" class="menu-input" type="number" min="3" max="18" placeholder="e.g. 10" />
+  </div>
+
+  <div class="menu-row">
+    <label for="deviceMode">Device Mode:</label>
+    <select id="deviceMode" class="menu-input">
+      <option value="auto">Auto (mouse + touch)</option>
+      <option value="mouse">Mouse only</option>
+      <option value="touch">Touch only</option>
+    </select>
+  </div>
+
+  <div class="menu-row">
+    <label for="blocks">Number of Blocks:</label>
+    <input id="blocks" class="menu-input" type="number" min="1" max="10" value="3" />
+  </div>
+
+  <div class="menu-row">
+    <label for="trialsPerBlock">Trials per Block:</label>
+    <input id="trialsPerBlock" class="menu-input" type="number" min="5" max="40" value="12" />
+  </div>
+
+  <button class="btn" onclick="startExperiment()">Start Experiment</button>
+</div>
+
+<div id="ui">
+  <div class="panel" id="infoParticipant">ID: - | Age: -</div>
+  <div class="panel" id="infoBlock">Block: -</div>
+  <div class="panel" id="infoTrial">Trial: -/-</div>
+  <div class="panel" id="infoDevice">Device: -</div>
+  <div id="progressBarOuter">
+    <div id="progressBarInner"></div>
+  </div>
+</div>
+
+<div id="message"></div>
+<canvas id="canvas"></canvas>
+
+<script>
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const menu = document.getElementById("menu");
+  const ui = document.getElementById("ui");
+  const msg = document.getElementById("message");
+
+  const infoParticipant = document.getElementById("infoParticipant");
+  const infoBlock = document.getElementById("infoBlock");
+  const infoTrial = document.getElementById("infoTrial");
+  const infoDevice = document.getElementById("infoDevice");
+  const progressBarInner = document.getElementById("progressBarInner");
+
+  let participantId = "";
+  let age = "";
+  let deviceMode = "auto";
+  let numBlocks = 3;
+  let trialsPerBlock = 12;
+  let totalTrials = 0;
+
+  let currentBlock = 1;
+  let currentTrialInBlock = 0;
+  let globalTrialIndex = 0;
+
+  let firefly = null;
+  let lastCenter = null; // starting point of movement
+  let trialStartTime = 0;
+  let logs = [];
+  let running = false;
+
+  const fireflyBaseSizes = [0.04, 0.06, 0.08]; // proportion of min(screen dim)
+  let baseSizePixels = [30, 50, 70]; // fallback
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const minDim = Math.min(canvas.width, canvas.height);
+    baseSizePixels = fireflyBaseSizes.map(r => Math.max(20, Math.round(r * minDim)));
+  }
+  window.addEventListener("resize", () => {
+    resizeCanvas();
+  });
+
+  function startExperiment() {
+    participantId = document.getElementById("pid").value.trim();
+    age = document.getElementById("age").value.trim();
+    deviceMode = document.getElementById("deviceMode").value;
+    numBlocks = parseInt(document.getElementById("blocks").value, 10);
+    trialsPerBlock = parseInt(document.getElementById("trialsPerBlock").value, 10);
+
+    if (!participantId) {
+      alert("Please enter Participant ID.");
+      return;
+    }
+    if (!age || isNaN(age)) {
+      alert("Please enter a valid age.");
+      return;
+    }
+    if (isNaN(numBlocks) || numBlocks < 1) {
+      alert("Number of blocks must be at least 1.");
+      return;
+    }
+    if (isNaN(trialsPerBlock) || trialsPerBlock < 3) {
+      alert("Trials per block must be at least 3.");
+      return;
+    }
+
+    totalTrials = numBlocks * trialsPerBlock;
+    logs = [];
+    currentBlock = 1;
+    currentTrialInBlock = 0;
+    globalTrialIndex = 0;
+    running = true;
+
+    menu.style.display = "none";
+    ui.style.display = "block";
+    canvas.style.display = "block";
+    resizeCanvas();
+
+    infoParticipant.textContent = `ID: ${participantId} | Age: ${age}`;
+    infoDevice.textContent = `Device: ${deviceMode}`;
+    updateUI();
+
+    lastCenter = { x: canvas.width / 2, y: canvas.height / 2 };
+    nextTrial();
+    drawLoop();
+    showMessage("Get ready... tap/click the glowing fireflies!", 2000);
+  }
+
+  function updateUI() {
+    infoBlock.textContent = `Block: ${currentBlock}/${numBlocks}`;
+    infoTrial.textContent = `Trial: ${currentTrialInBlock}/${trialsPerBlock}`;
+    const progressPercent = (globalTrialIndex / totalTrials) * 100;
+    progressBarInner.style.width = `${progressPercent}%`;
+  }
+
+  function nextTrial() {
+    if (!running) return;
+
+    globalTrialIndex++;
+    if (globalTrialIndex > totalTrials) {
+      finishExperiment();
+      return;
+    }
+
+    currentTrialInBlock++;
+    if (currentTrialInBlock > trialsPerBlock) {
+      currentBlock++;
+      currentTrialInBlock = 1;
+      showMessage(`Block ${currentBlock} starting...`, 1500);
+    }
+
+    const size = baseSizePixels[Math.floor(Math.random() * baseSizePixels.length)];
+    const margin = size * 1.5;
+
+    const x = margin + Math.random() * (canvas.width - 2 * margin);
+    const y = margin + Math.random() * (canvas.height - 2 * margin);
+
+    firefly = { x, y, size };
+
+    updateUI();
+    trialStartTime = performance.now();
+  }
+
+  function drawBackground() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Starry background
+    const starCount = 50;
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    for (let i = 0; i < starCount; i++) {
+      const sx = Math.random() * canvas.width;
+      const sy = Math.random() * (canvas.height * 0.6);
+      const r = Math.random() * 1.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Ground gradient
+    const g = ctx.createLinearGradient(0, canvas.height * 0.7, 0, canvas.height);
+    g.addColorStop(0, "#022912");
+    g.addColorStop(1, "#011506");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+  }
+
+  function drawFirefly(timestamp) {
+    if (!firefly) return;
+
+    const pulse = 0.5 + 0.5 * Math.sin(timestamp / 500);
+    const outerRadius = (firefly.size * 1.6) * (0.9 + 0.15 * pulse);
+
+    ctx.save();
+    ctx.shadowColor = "rgba(255, 230, 120, 0.9)";
+    ctx.shadowBlur = 25 + 10 * pulse;
+
+    // Outer glow
+    const gradient = ctx.createRadialGradient(
+      firefly.x, firefly.y, firefly.size * 0.1,
+      firefly.x, firefly.y, outerRadius
+    );
+    gradient.addColorStop(0, "rgba(255, 238, 150, 0.9)");
+    gradient.addColorStop(1, "rgba(255, 238, 150, 0)");
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(firefly.x, firefly.y, outerRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner core
+    ctx.fillStyle = "#ffef6b";
+    ctx.beginPath();
+    ctx.arc(firefly.x, firefly.y, firefly.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawLoop(timestamp) {
+    if (!running) return;
+    drawBackground();
+    drawFirefly(timestamp || 0);
+    requestAnimationFrame(drawLoop);
+  }
+
+  function handleInput(x, y, deviceType) {
+    if (!running || !firefly || !lastCenter) return;
+
+    if (deviceMode === "mouse" && deviceType === "touch") return;
+    if (deviceMode === "touch" && deviceType === "mouse") return;
+
+    const endTime = performance.now();
+    const movementTimeMs = endTime - trialStartTime;
+
+    const dxClick = x - firefly.x;
+    const dyClick = y - firefly.y;
+    const distClick = Math.sqrt(dxClick * dxClick + dyClick * dyClick);
+    const hit = distClick <= firefly.size / 2 ? 1 : 0;
+
+    const dxAmp = firefly.x - lastCenter.x;
+    const dyAmp = firefly.y - lastCenter.y;
+    const amplitude = Math.sqrt(dxAmp * dxAmp + dyAmp * dyAmp);
+
+    const W = firefly.size;
+    let ID = 0;
+    if (W > 0) {
+      ID = Math.log2((amplitude + W) / W);
+    }
+
+    let TP = 0;
+    if (movementTimeMs > 0) {
+      TP = ID / (movementTimeMs / 1000.0);
+    }
+
+    logs.push({
+      participantId,
+      age,
+      deviceMode,
+      block: currentBlock,
+      trialInBlock: currentTrialInBlock,
+      globalTrialIndex,
+      startX: lastCenter.x.toFixed(2),
+      startY: lastCenter.y.toFixed(2),
+      targetX: firefly.x.toFixed(2),
+      targetY: firefly.y.toFixed(2),
+      clickX: x.toFixed(2),
+      clickY: y.toFixed(2),
+      amplitude: amplitude.toFixed(2),
+      targetWidth: W.toFixed(2),
+      movementTimeMs: movementTimeMs.toFixed(2),
+      ID_Shannon: ID.toFixed(4),
+      TP_bitsPerSec: TP.toFixed(4),
+      hit,
+      deviceUsed: deviceType,
+      timestamp: new Date().toISOString()
+    });
+
+    lastCenter = { x: firefly.x, y: firefly.y };
+
+    if (hit) {
+      showMessage("Nice catch! 🐝", 500);
+    } else {
+      showMessage("Missed! Try the next one 🌟", 700);
+    }
+
+    nextTrial();
+  }
+
+  function showMessage(text, ms) {
+    msg.textContent = text;
+    msg.style.display = "block";
+    setTimeout(() => {
+      msg.style.display = "none";
+    }, ms);
+  }
+
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    handleInput(x, y, "mouse");
+  });
+
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches[0];
+    const x = t.clientX - rect.left;
+    const y = t.clientY - rect.top;
+    handleInput(x, y, "touch");
+  }, { passive: false });
+
+  function finishExperiment() {
+    running = false;
+    showMessage("Experiment complete! Preparing download...", 2000);
+    downloadCSV();
+    setTimeout(() => {
+      alert("Experiment complete. CSV file has been downloaded.");
+    }, 500);
+  }
+
+  function downloadCSV() {
+    if (!logs.length) {
+      alert("No data recorded.");
+      return;
+    }
+
+    let csv = "participantId,age,deviceMode,block,trialInBlock,globalTrialIndex," +
+              "startX,startY,targetX,targetY,clickX,clickY,amplitude,targetWidth," +
+              "movementTimeMs,ID_Shannon,TP_bitsPerSec,hit,deviceUsed,timestamp\n";
+
+    logs.forEach(r => {
+      csv += [
+        r.participantId,
+        r.age,
+        r.deviceMode,
+        r.block,
+        r.trialInBlock,
+        r.globalTrialIndex,
+        r.startX,
+        r.startY,
+        r.targetX,
+        r.targetY,
+        r.clickX,
+        r.clickY,
+        r.amplitude,
+        r.targetWidth,
+        r.movementTimeMs,
+        r.ID_Shannon,
+        r.TP_bitsPerSec,
+        r.hit,
+        r.deviceUsed,
+        r.timestamp
+      ].join(",") + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Firefly_Garden_${participantId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+</script>
+</body>
+</html>

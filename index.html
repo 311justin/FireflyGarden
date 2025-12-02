@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Firefly Garden Experiment – Fitts' Law (Enhanced)</title>
+  <title>Firefly Garden Experiment – Fitts' Law</title>
   <style>
     html, body {
       margin: 0;
@@ -400,12 +400,12 @@
     const W = firefly.size;
     let ID = 0;
     if (W > 0) {
-      ID = Math.log2((amplitude + W) / W);
+      ID = Math.log2((amplitude + W) / W); // Shannon formulation
     }
 
     let TP = 0;
     if (movementTimeMs > 0) {
-      TP = ID / (movementTimeMs / 1000.0);
+      TP = ID / (movementTimeMs / 1000.0); // bits per second
     }
 
     logs.push({
@@ -466,21 +466,20 @@
     handleInput(x, y, "touch");
   }, { passive: false });
 
+  // ===== NEW: Finish experiment → show table + CSV + copy & download =====
   function finishExperiment() {
     running = false;
-    showMessage("Experiment complete! Preparing download...", 2000);
-    downloadCSV();
-    setTimeout(() => {
-      alert("Experiment complete. CSV file has been downloaded.");
-    }, 500);
+    showMessage("Experiment complete! Preparing results...", 2000);
+    showResultsInline();
   }
 
-  function downloadCSV() {
+  function showResultsInline() {
     if (!logs.length) {
       alert("No data recorded.");
       return;
     }
 
+    // Build CSV string
     let csv = "participantId,age,deviceMode,block,trialInBlock,globalTrialIndex," +
               "startX,startY,targetX,targetY,clickX,clickY,amplitude,targetWidth," +
               "movementTimeMs,ID_Shannon,TP_bitsPerSec,hit,deviceUsed,timestamp\n";
@@ -510,13 +509,182 @@
       ].join(",") + "\n";
     });
 
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Firefly_Garden_${participantId}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // Clear the page and show results view
+    document.body.innerHTML = "";
+
+    const container = document.createElement("div");
+    container.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    container.style.background = "#02030a";
+    container.style.color = "#ffffff";
+    container.style.minHeight = "100vh";
+    container.style.padding = "16px";
+    container.style.boxSizing = "border-box";
+
+    const title = document.createElement("h2");
+    title.textContent = "Firefly Garden – Experiment Results";
+    container.appendChild(title);
+
+    const info = document.createElement("p");
+    info.style.fontSize = "14px";
+    info.style.lineHeight = "1.4";
+    info.innerHTML =
+      "The experiment is complete. Below is a preview of your data table and the raw CSV output.<br>" +
+      "<br><b>How to use this:</b><br>" +
+      "– On iPad/iPhone: tap inside the CSV box, select all, copy, and paste into Notes / Google Sheets.<br>" +
+      "– On laptop: select all and paste into Excel / SPSS, or click the Download CSV button.";
+    container.appendChild(info);
+
+    // Buttons row
+    const buttonRow = document.createElement("div");
+    buttonRow.style.margin = "12px 0";
+    buttonRow.style.display = "flex";
+    buttonRow.style.flexWrap = "wrap";
+    buttonRow.style.gap = "8px";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Copy CSV to Clipboard";
+    copyBtn.style.padding = "8px 14px";
+    copyBtn.style.borderRadius = "999px";
+    copyBtn.style.border = "none";
+    copyBtn.style.background = "#ffdf37";
+    copyBtn.style.color = "#222";
+    copyBtn.style.fontWeight = "600";
+    copyBtn.style.cursor = "pointer";
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.textContent = "Download CSV File";
+    downloadBtn.style.padding = "8px 14px";
+    downloadBtn.style.borderRadius = "999px";
+    downloadBtn.style.border = "none";
+    downloadBtn.style.background = "#4ade80";
+    downloadBtn.style.color = "#022c22";
+    downloadBtn.style.fontWeight = "600";
+    downloadBtn.style.cursor = "pointer";
+
+    buttonRow.appendChild(copyBtn);
+    buttonRow.appendChild(downloadBtn);
+    container.appendChild(buttonRow);
+
+    // Table preview (top 50 rows)
+    const tableTitle = document.createElement("h3");
+    tableTitle.textContent = "Table Preview (first 50 rows)";
+    tableTitle.style.marginTop = "10px";
+    container.appendChild(tableTitle);
+
+    const tableWrapper = document.createElement("div");
+    tableWrapper.style.maxHeight = "260px";
+    tableWrapper.style.overflow = "auto";
+    tableWrapper.style.borderRadius = "8px";
+    tableWrapper.style.border = "1px solid rgba(255,255,255,0.15)";
+    tableWrapper.style.background = "rgba(0,0,0,0.35)";
+    tableWrapper.style.marginBottom = "12px";
+
+    const table = document.createElement("table");
+    table.style.width = "100%";
+    table.style.borderCollapse = "collapse";
+    table.style.fontSize = "12px";
+
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    const headers = [
+      "Trial", "Device", "Block", "TrialInBlock",
+      "StartX", "StartY", "TargetX", "TargetY",
+      "ClickX", "ClickY", "A (px)", "W (px)",
+      "MT (ms)", "ID", "TP (bits/s)", "Hit"
+    ];
+    headers.forEach(h => {
+      const th = document.createElement("th");
+      th.textContent = h;
+      th.style.position = "sticky";
+      th.style.top = "0";
+      th.style.background = "rgba(10,10,25,0.95)";
+      th.style.padding = "4px 6px";
+      th.style.borderBottom = "1px solid rgba(255,255,255,0.2)";
+      th.style.textAlign = "left";
+      th.style.whiteSpace = "nowrap";
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    const previewCount = Math.min(logs.length, 50);
+    for (let i = 0; i < previewCount; i++) {
+      const r = logs[i];
+      const tr = document.createElement("tr");
+
+      const cells = [
+        r.globalTrialIndex,
+        r.deviceUsed,
+        r.block,
+        r.trialInBlock,
+        r.startX,
+        r.startY,
+        r.targetX,
+        r.targetY,
+        r.clickX,
+        r.clickY,
+        r.amplitude,
+        r.targetWidth,
+        r.movementTimeMs,
+        r.ID_Shannon,
+        r.TP_bitsPerSec,
+        r.hit
+      ];
+      cells.forEach((val, idx) => {
+        const td = document.createElement("td");
+        td.textContent = val;
+        td.style.padding = "3px 6px";
+        td.style.borderBottom = "1px solid rgba(255,255,255,0.06)";
+        if (idx === 0) {
+          td.style.fontWeight = "600";
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    tableWrapper.appendChild(table);
+    container.appendChild(tableWrapper);
+
+    // CSV textarea
+    const csvTitle = document.createElement("h3");
+    csvTitle.textContent = "Raw CSV Output";
+    container.appendChild(csvTitle);
+
+    const textarea = document.createElement("textarea");
+    textarea.style.width = "100%";
+    textarea.style.height = "260px";
+    textarea.style.borderRadius = "8px";
+    textarea.style.padding = "8px";
+    textarea.style.boxSizing = "border-box";
+    textarea.style.fontFamily = "monospace";
+    textarea.style.fontSize = "11px";
+    textarea.style.whiteSpace = "pre";
+    textarea.value = csv;
+    container.appendChild(textarea);
+
+    document.body.appendChild(container);
+
+    // Button behaviours
+    copyBtn.addEventListener("click", () => {
+      textarea.select();
+      textarea.setSelectionRange(0, 999999); // iOS support
+      const successful = document.execCommand("copy");
+      alert(successful ? "CSV copied to clipboard." : "Unable to copy CSV. Please select and copy manually.");
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Firefly_Garden_${participantId || "data"}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
   }
 </script>
 </body>

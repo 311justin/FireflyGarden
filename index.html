@@ -466,10 +466,11 @@
     handleInput(x, y, "touch");
   }, { passive: false });
 
-  // ===== NEW: Finish experiment → show table + CSV + copy & download =====
+  // ========= END SCREEN (simple thank you + 2 buttons) =========
+
   function finishExperiment() {
     running = false;
-    showMessage("Experiment complete! Preparing results...", 2000);
+    showMessage("Experiment complete! Preparing results...", 1500);
     showResultsInline();
   }
 
@@ -509,7 +510,7 @@
       ].join(",") + "\n";
     });
 
-    // Clear the page and show results view
+    // Replace whole page with simple completion screen
     document.body.innerHTML = "";
 
     const container = document.createElement("div");
@@ -517,33 +518,36 @@
     container.style.background = "#02030a";
     container.style.color = "#ffffff";
     container.style.minHeight = "100vh";
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.justifyContent = "center";
+    container.style.alignItems = "center";
+    container.style.textAlign = "center";
     container.style.padding = "16px";
     container.style.boxSizing = "border-box";
 
     const title = document.createElement("h2");
-    title.textContent = "Firefly Garden – Experiment Results";
+    title.textContent = "Thank you! 🎉";
     container.appendChild(title);
 
-    const info = document.createElement("p");
-    info.style.fontSize = "14px";
-    info.style.lineHeight = "1.4";
-    info.innerHTML =
-      "The experiment is complete. Below is a preview of your data table and the raw CSV output.<br>" +
-      "<br><b>How to use this:</b><br>" +
-      "– On iPad/iPhone: tap inside the CSV box, select all, copy, and paste into Notes / Google Sheets.<br>" +
-      "– On laptop: select all and paste into Excel / SPSS, or click the Download CSV button.";
-    container.appendChild(info);
+    const msg = document.createElement("p");
+    msg.style.maxWidth = "480px";
+    msg.style.lineHeight = "1.5";
+    msg.innerHTML =
+      "Your experiment is complete.<br><br>" +
+      "You can now save the results as a CSV file or copy them to use in Excel, SPSS, or other analysis tools.";
+    container.appendChild(msg);
 
-    // Buttons row
     const buttonRow = document.createElement("div");
-    buttonRow.style.margin = "12px 0";
+    buttonRow.style.marginTop = "18px";
     buttonRow.style.display = "flex";
     buttonRow.style.flexWrap = "wrap";
-    buttonRow.style.gap = "8px";
+    buttonRow.style.gap = "10px";
+    buttonRow.style.justifyContent = "center";
 
     const copyBtn = document.createElement("button");
-    copyBtn.textContent = "Copy CSV to Clipboard";
-    copyBtn.style.padding = "8px 14px";
+    copyBtn.textContent = "Copy CSV";
+    copyBtn.style.padding = "10px 18px";
     copyBtn.style.borderRadius = "999px";
     copyBtn.style.border = "none";
     copyBtn.style.background = "#ffdf37";
@@ -552,8 +556,8 @@
     copyBtn.style.cursor = "pointer";
 
     const downloadBtn = document.createElement("button");
-    downloadBtn.textContent = "Download CSV File";
-    downloadBtn.style.padding = "8px 14px";
+    downloadBtn.textContent = "Download CSV";
+    downloadBtn.style.padding = "10px 18px";
     downloadBtn.style.borderRadius = "999px";
     downloadBtn.style.border = "none";
     downloadBtn.style.background = "#4ade80";
@@ -565,113 +569,21 @@
     buttonRow.appendChild(downloadBtn);
     container.appendChild(buttonRow);
 
-    // Table preview (top 50 rows)
-    const tableTitle = document.createElement("h3");
-    tableTitle.textContent = "Table Preview (first 50 rows)";
-    tableTitle.style.marginTop = "10px";
-    container.appendChild(tableTitle);
-
-    const tableWrapper = document.createElement("div");
-    tableWrapper.style.maxHeight = "260px";
-    tableWrapper.style.overflow = "auto";
-    tableWrapper.style.borderRadius = "8px";
-    tableWrapper.style.border = "1px solid rgba(255,255,255,0.15)";
-    tableWrapper.style.background = "rgba(0,0,0,0.35)";
-    tableWrapper.style.marginBottom = "12px";
-
-    const table = document.createElement("table");
-    table.style.width = "100%";
-    table.style.borderCollapse = "collapse";
-    table.style.fontSize = "12px";
-
-    const thead = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    const headers = [
-      "Trial", "Device", "Block", "TrialInBlock",
-      "StartX", "StartY", "TargetX", "TargetY",
-      "ClickX", "ClickY", "A (px)", "W (px)",
-      "MT (ms)", "ID", "TP (bits/s)", "Hit"
-    ];
-    headers.forEach(h => {
-      const th = document.createElement("th");
-      th.textContent = h;
-      th.style.position = "sticky";
-      th.style.top = "0";
-      th.style.background = "rgba(10,10,25,0.95)";
-      th.style.padding = "4px 6px";
-      th.style.borderBottom = "1px solid rgba(255,255,255,0.2)";
-      th.style.textAlign = "left";
-      th.style.whiteSpace = "nowrap";
-      headerRow.appendChild(th);
-    });
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-    const previewCount = Math.min(logs.length, 50);
-    for (let i = 0; i < previewCount; i++) {
-      const r = logs[i];
-      const tr = document.createElement("tr");
-
-      const cells = [
-        r.globalTrialIndex,
-        r.deviceUsed,
-        r.block,
-        r.trialInBlock,
-        r.startX,
-        r.startY,
-        r.targetX,
-        r.targetY,
-        r.clickX,
-        r.clickY,
-        r.amplitude,
-        r.targetWidth,
-        r.movementTimeMs,
-        r.ID_Shannon,
-        r.TP_bitsPerSec,
-        r.hit
-      ];
-      cells.forEach((val, idx) => {
-        const td = document.createElement("td");
-        td.textContent = val;
-        td.style.padding = "3px 6px";
-        td.style.borderBottom = "1px solid rgba(255,255,255,0.06)";
-        if (idx === 0) {
-          td.style.fontWeight = "600";
-        }
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-    tableWrapper.appendChild(table);
-    container.appendChild(tableWrapper);
-
-    // CSV textarea
-    const csvTitle = document.createElement("h3");
-    csvTitle.textContent = "Raw CSV Output";
-    container.appendChild(csvTitle);
-
-    const textarea = document.createElement("textarea");
-    textarea.style.width = "100%";
-    textarea.style.height = "260px";
-    textarea.style.borderRadius = "8px";
-    textarea.style.padding = "8px";
-    textarea.style.boxSizing = "border-box";
-    textarea.style.fontFamily = "monospace";
-    textarea.style.fontSize = "11px";
-    textarea.style.whiteSpace = "pre";
-    textarea.value = csv;
-    container.appendChild(textarea);
-
     document.body.appendChild(container);
 
-    // Button behaviours
+    // Hidden textarea for copy (not shown on screen)
+    const hiddenTextarea = document.createElement("textarea");
+    hiddenTextarea.style.position = "fixed";
+    hiddenTextarea.style.opacity = "0";
+    hiddenTextarea.style.pointerEvents = "none";
+    hiddenTextarea.value = csv;
+    document.body.appendChild(hiddenTextarea);
+
     copyBtn.addEventListener("click", () => {
-      textarea.select();
-      textarea.setSelectionRange(0, 999999); // iOS support
-      const successful = document.execCommand("copy");
-      alert(successful ? "CSV copied to clipboard." : "Unable to copy CSV. Please select and copy manually.");
+      hiddenTextarea.select();
+      hiddenTextarea.setSelectionRange(0, 999999); // iOS support
+      const ok = document.execCommand("copy");
+      alert(ok ? "CSV copied to clipboard." : "Unable to copy CSV. Please try selecting manually.");
     });
 
     downloadBtn.addEventListener("click", () => {

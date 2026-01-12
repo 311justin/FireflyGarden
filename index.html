@@ -17,9 +17,7 @@
       touch-action: none;
     }
 
-    #canvas {
-      display: none;
-    }
+    #canvas { display: none; }
 
     #menu {
       position: absolute;
@@ -41,15 +39,13 @@
     }
 
     #menu p {
-      max-width: 600px;
+      max-width: 650px;
       margin: 5px 0 15px 0;
       line-height: 1.4;
       font-size: 16px;
     }
 
-    .menu-row {
-      margin: 5px 0;
-    }
+    .menu-row { margin: 5px 0; }
 
     .menu-row label {
       display: inline-block;
@@ -103,6 +99,7 @@
       padding: 8px 12px;
       display: inline-block;
       margin-right: 8px;
+      margin-bottom: 6px;
     }
 
     #progressBarOuter {
@@ -135,6 +132,8 @@
       border-radius: 999px;
       font-size: 16px;
       display: none;
+      max-width: 92vw;
+      text-align: center;
     }
   </style>
 </head>
@@ -144,7 +143,7 @@
   <h1>✨ Firefly Garden Experiment ✨</h1>
   <p>
     Catch the glowing fireflies as quickly and accurately as you can.<br>
-    This experiment helps us study how children interact using mouse and touch input.
+    This experiment records performance for mouse and touch input.
   </p>
 
   <div class="menu-row">
@@ -158,9 +157,27 @@
   </div>
 
   <div class="menu-row">
+    <label for="gender">Gender:</label>
+    <select id="gender" class="menu-input">
+      <option value="">Select</option>
+      <option value="Male">Male</option>
+      <option value="Female">Female</option>
+    </select>
+  </div>
+
+  <div class="menu-row">
+    <label for="handedness">Handedness:</label>
+    <select id="handedness" class="menu-input">
+      <option value="">Select</option>
+      <option value="Right">Right-handed</option>
+      <option value="Left">Left-handed</option>
+    </select>
+  </div>
+
+  <div class="menu-row">
     <label for="deviceMode">Device Mode:</label>
     <select id="deviceMode" class="menu-input">
-      <option value="auto">Auto (mouse + touch)</option>
+      <option value="auto">Auto (detect mouse/touch)</option>
       <option value="mouse">Mouse only</option>
       <option value="touch">Touch only</option>
     </select>
@@ -181,9 +198,12 @@
 
 <div id="ui">
   <div class="panel" id="infoParticipant">ID: - | Age: -</div>
+  <div class="panel" id="infoDemo">Gender: - | Hand: - | Group: -</div>
   <div class="panel" id="infoBlock">Block: -</div>
   <div class="panel" id="infoTrial">Trial: -/-</div>
-  <div class="panel" id="infoDevice">Device: -</div>
+  <div class="panel" id="infoMode">Mode: -</div>
+  <div class="panel" id="infoDetected">Detected: -</div>
+
   <div id="progressBarOuter">
     <div id="progressBarInner"></div>
   </div>
@@ -201,13 +221,18 @@
   const msg = document.getElementById("message");
 
   const infoParticipant = document.getElementById("infoParticipant");
+  const infoDemo = document.getElementById("infoDemo");
   const infoBlock = document.getElementById("infoBlock");
   const infoTrial = document.getElementById("infoTrial");
-  const infoDevice = document.getElementById("infoDevice");
+  const infoMode = document.getElementById("infoMode");
+  const infoDetected = document.getElementById("infoDetected");
   const progressBarInner = document.getElementById("progressBarInner");
 
   let participantId = "";
-  let age = "";
+  let age = 0;
+  let ageGroup = "";
+  let gender = "";
+  let handedness = "";
   let deviceMode = "auto";
   let numBlocks = 3;
   let trialsPerBlock = 12;
@@ -218,47 +243,75 @@
   let globalTrialIndex = 0;
 
   let firefly = null;
-  let lastCenter = null; // starting point of movement
+  let lastCenter = null;
   let trialStartTime = 0;
   let logs = [];
   let running = false;
 
-  const fireflyBaseSizes = [0.04, 0.06, 0.08]; // proportion of min(screen dim)
-  let baseSizePixels = [30, 50, 70]; // fallback
+  // Prevent "ghost click" after touch on mobile
+  let lastTouchTs = 0;
+
+  // Sizes
+  const fireflyBaseSizes = [0.04, 0.06, 0.08];
+  let baseSizePixels = [30, 50, 70];
+
+  // Stable stars (no flicker)
+  let stars = [];
+  function generateStars() {
+    stars = [];
+    const starCount = 70;
+    for (let i = 0; i < starCount; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * (canvas.height * 0.62),
+        r: Math.random() * 1.6,
+        a: 0.25 + Math.random() * 0.55
+      });
+    }
+  }
 
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     const minDim = Math.min(canvas.width, canvas.height);
     baseSizePixels = fireflyBaseSizes.map(r => Math.max(20, Math.round(r * minDim)));
+    generateStars();
   }
-  window.addEventListener("resize", () => {
-    resizeCanvas();
-  });
+  window.addEventListener("resize", resizeCanvas);
+
+  function computeAgeGroup(a) {
+    // You can change bins later if lecturer requests
+    if (a >= 6 && a <= 8) return "6-8";
+    if (a >= 9 && a <= 10) return "9-10";
+    if (a >= 11 && a <= 12) return "11-12";
+    return "Other";
+  }
+
+  function localTimeKL() {
+    // LOCAL ONLY (Malaysia time)
+    return new Date().toLocaleString("en-GB", {
+      timeZone: "Asia/Kuala_Lumpur",
+      hour12: false
+    });
+  }
 
   function startExperiment() {
     participantId = document.getElementById("pid").value.trim();
-    age = document.getElementById("age").value.trim();
+    age = parseInt(document.getElementById("age").value.trim(), 10);
+    gender = document.getElementById("gender").value;
+    handedness = document.getElementById("handedness").value;
     deviceMode = document.getElementById("deviceMode").value;
     numBlocks = parseInt(document.getElementById("blocks").value, 10);
     trialsPerBlock = parseInt(document.getElementById("trialsPerBlock").value, 10);
 
-    if (!participantId) {
-      alert("Please enter Participant ID.");
-      return;
-    }
-    if (!age || isNaN(age)) {
-      alert("Please enter a valid age.");
-      return;
-    }
-    if (isNaN(numBlocks) || numBlocks < 1) {
-      alert("Number of blocks must be at least 1.");
-      return;
-    }
-    if (isNaN(trialsPerBlock) || trialsPerBlock < 3) {
-      alert("Trials per block must be at least 3.");
-      return;
-    }
+    if (!participantId) return alert("Please enter Participant ID.");
+    if (!age || isNaN(age)) return alert("Please enter a valid age.");
+    if (!gender) return alert("Please select gender.");
+    if (!handedness) return alert("Please select handedness.");
+    if (isNaN(numBlocks) || numBlocks < 1) return alert("Number of blocks must be at least 1.");
+    if (isNaN(trialsPerBlock) || trialsPerBlock < 3) return alert("Trials per block must be at least 3.");
+
+    ageGroup = computeAgeGroup(age);
 
     totalTrials = numBlocks * trialsPerBlock;
     logs = [];
@@ -273,7 +326,9 @@
     resizeCanvas();
 
     infoParticipant.textContent = `ID: ${participantId} | Age: ${age}`;
-    infoDevice.textContent = `Device: ${deviceMode}`;
+    infoDemo.textContent = `Gender: ${gender} | Hand: ${handedness} | Group: ${ageGroup}`;
+    infoMode.textContent = `Mode: ${deviceMode.toUpperCase()}`;
+    infoDetected.textContent = `Detected: -`;
     updateUI();
 
     lastCenter = { x: canvas.width / 2, y: canvas.height / 2 };
@@ -302,7 +357,7 @@
     if (currentTrialInBlock > trialsPerBlock) {
       currentBlock++;
       currentTrialInBlock = 1;
-      showMessage(`Block ${currentBlock} starting...`, 1500);
+      showMessage(`Block ${currentBlock} starting...`, 1200);
     }
 
     const size = baseSizePixels[Math.floor(Math.random() * baseSizePixels.length)];
@@ -320,15 +375,11 @@
   function drawBackground() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Starry background
-    const starCount = 50;
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    for (let i = 0; i < starCount; i++) {
-      const sx = Math.random() * canvas.width;
-      const sy = Math.random() * (canvas.height * 0.6);
-      const r = Math.random() * 1.5;
+    // Stable stars
+    for (const s of stars) {
+      ctx.fillStyle = `rgba(255,255,255,${s.a})`;
       ctx.beginPath();
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -350,12 +401,11 @@
     ctx.shadowColor = "rgba(255, 230, 120, 0.9)";
     ctx.shadowBlur = 25 + 10 * pulse;
 
-    // Outer glow
     const gradient = ctx.createRadialGradient(
       firefly.x, firefly.y, firefly.size * 0.1,
       firefly.x, firefly.y, outerRadius
     );
-    gradient.addColorStop(0, "rgba(255, 238, 150, 0.9)");
+    gradient.addColorStop(0, "rgba(255, 238, 150, 0.95)");
     gradient.addColorStop(1, "rgba(255, 238, 150, 0)");
 
     ctx.fillStyle = gradient;
@@ -363,7 +413,6 @@
     ctx.arc(firefly.x, firefly.y, outerRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Inner core
     ctx.fillStyle = "#ffef6b";
     ctx.beginPath();
     ctx.arc(firefly.x, firefly.y, firefly.size / 2, 0, Math.PI * 2);
@@ -382,8 +431,11 @@
   function handleInput(x, y, deviceType) {
     if (!running || !firefly || !lastCenter) return;
 
-    if (deviceMode === "mouse" && deviceType === "touch") return;
-    if (deviceMode === "touch" && deviceType === "mouse") return;
+    // Mode enforcement
+    if (deviceMode === "mouse" && deviceType !== "mouse") return;
+    if (deviceMode === "touch" && deviceType !== "touch") return;
+
+    infoDetected.textContent = `Detected: ${deviceType.toUpperCase()}`;
 
     const endTime = performance.now();
     const movementTimeMs = endTime - trialStartTime;
@@ -398,20 +450,19 @@
     const amplitude = Math.sqrt(dxAmp * dxAmp + dyAmp * dyAmp);
 
     const W = firefly.size;
-    let ID = 0;
-    if (W > 0) {
-      ID = Math.log2((amplitude + W) / W); // Shannon formulation
-    }
+    const ID = (W > 0) ? Math.log2((amplitude + W) / W) : 0; // Shannon
+    const TP = (movementTimeMs > 0) ? (ID / (movementTimeMs / 1000.0)) : 0;
 
-    let TP = 0;
-    if (movementTimeMs > 0) {
-      TP = ID / (movementTimeMs / 1000.0); // bits per second
-    }
-
+    // Record TRIAL row
     logs.push({
+      record_type: "trial",
       participantId,
       age,
+      ageGroup,
+      gender,
+      handedness,
       deviceMode,
+      deviceUsed: deviceType,
       block: currentBlock,
       trialInBlock: currentTrialInBlock,
       globalTrialIndex,
@@ -427,17 +478,14 @@
       ID_Shannon: ID.toFixed(4),
       TP_bitsPerSec: TP.toFixed(4),
       hit,
-      deviceUsed: deviceType,
-      timestamp: new Date().toISOString()
+      local_timestamp_KL: localTimeKL()
     });
 
+    // Update movement start for next trial
     lastCenter = { x: firefly.x, y: firefly.y };
 
-    if (hit) {
-      showMessage("Nice catch! 🐝", 500);
-    } else {
-      showMessage("Missed! Try the next one 🌟", 700);
-    }
+    if (hit) showMessage("Nice catch! ✨", 450);
+    else showMessage("Missed! Try the next one 🌟", 650);
 
     nextTrial();
   }
@@ -445,12 +493,13 @@
   function showMessage(text, ms) {
     msg.textContent = text;
     msg.style.display = "block";
-    setTimeout(() => {
-      msg.style.display = "none";
-    }, ms);
+    setTimeout(() => { msg.style.display = "none"; }, ms);
   }
 
   canvas.addEventListener("click", (e) => {
+    // Prevent ghost click after touch
+    if (Date.now() - lastTouchTs < 600) return;
+
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -459,6 +508,8 @@
 
   canvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
+    lastTouchTs = Date.now();
+
     const rect = canvas.getBoundingClientRect();
     const t = e.touches[0];
     const x = t.clientX - rect.left;
@@ -466,51 +517,89 @@
     handleInput(x, y, "touch");
   }, { passive: false });
 
-  // ========= END SCREEN (simple thank you + 2 buttons) =========
+  // ========= END SCREEN (thank you + 2 buttons) =========
 
   function finishExperiment() {
     running = false;
-    showMessage("Experiment complete! Preparing results...", 1500);
+    showMessage("Experiment complete! Preparing CSV...", 1200);
     showResultsInline();
   }
 
-  function showResultsInline() {
-    if (!logs.length) {
-      alert("No data recorded.");
-      return;
+  function computeSummaries(trialRows) {
+    // Summary by deviceUsed + overall (still ONE CSV, via record_type)
+    const groups = new Map();
+
+    function add(key, row) {
+      if (!groups.has(key)) groups.set(key, { n: 0, sumMT: 0, sumTP: 0, hits: 0 });
+      const g = groups.get(key);
+      g.n += 1;
+      g.sumMT += parseFloat(row.movementTimeMs);
+      g.sumTP += parseFloat(row.TP_bitsPerSec);
+      g.hits += row.hit ? 1 : 0;
     }
 
-    // Build CSV string
-    let csv = "participantId,age,deviceMode,block,trialInBlock,globalTrialIndex," +
-              "startX,startY,targetX,targetY,clickX,clickY,amplitude,targetWidth," +
-              "movementTimeMs,ID_Shannon,TP_bitsPerSec,hit,deviceUsed,timestamp\n";
+    for (const r of trialRows) {
+      add(`device=${r.deviceUsed}`, r);
+      add(`overall`, r);
+    }
 
-    logs.forEach(r => {
-      csv += [
-        r.participantId,
-        r.age,
-        r.deviceMode,
-        r.block,
-        r.trialInBlock,
-        r.globalTrialIndex,
-        r.startX,
-        r.startY,
-        r.targetX,
-        r.targetY,
-        r.clickX,
-        r.clickY,
-        r.amplitude,
-        r.targetWidth,
-        r.movementTimeMs,
-        r.ID_Shannon,
-        r.TP_bitsPerSec,
-        r.hit,
-        r.deviceUsed,
-        r.timestamp
-      ].join(",") + "\n";
-    });
+    const out = [];
+    for (const [key, g] of groups.entries()) {
+      const avgMT = g.n ? (g.sumMT / g.n) : 0;
+      const avgTP = g.n ? (g.sumTP / g.n) : 0;
+      const err = g.n ? ((g.n - g.hits) / g.n) * 100 : 0;
 
-    // Replace whole page with simple completion screen
+      let deviceUsed = "ALL";
+      if (key.startsWith("device=")) deviceUsed = key.split("=")[1];
+
+      out.push({
+        record_type: "summary",
+        participantId,
+        age,
+        ageGroup,
+        gender,
+        handedness,
+        deviceMode,
+        deviceUsed,
+        n_trials: g.n,
+        avg_movementTimeMs: avgMT.toFixed(2),
+        avg_TP_bitsPerSec: avgTP.toFixed(4),
+        error_rate_percent: err.toFixed(2)
+      });
+    }
+    return out;
+  }
+
+  function showResultsInline() {
+    if (!logs.length) return alert("No data recorded.");
+
+    const trials = logs.filter(r => r.record_type === "trial");
+    const summaries = computeSummaries(trials);
+
+    // ONE CSV header that supports both trial + summary rows
+    const unifiedHeaders = [
+      "record_type",
+      "participantId","age","ageGroup","gender","handedness",
+      "deviceMode","deviceUsed",
+      "block","trialInBlock","globalTrialIndex",
+      "startX","startY","targetX","targetY","clickX","clickY",
+      "amplitude","targetWidth","movementTimeMs","ID_Shannon","TP_bitsPerSec","hit",
+      "local_timestamp_KL",
+      "n_trials","avg_movementTimeMs","avg_TP_bitsPerSec","error_rate_percent"
+    ];
+
+    function esc(v) {
+      const s = (v === undefined || v === null) ? "" : String(v);
+      return (s.includes(",") || s.includes('"') || s.includes("\n"))
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    }
+
+    let csv = unifiedHeaders.join(",") + "\n";
+    for (const r of trials) csv += unifiedHeaders.map(h => esc(r[h])).join(",") + "\n";
+    for (const s of summaries) csv += unifiedHeaders.map(h => esc(s[h])).join(",") + "\n";
+
+    // Replace whole page with completion screen
     document.body.innerHTML = "";
 
     const container = document.createElement("div");
@@ -530,13 +619,14 @@
     title.textContent = "Thank you! 🎉";
     container.appendChild(title);
 
-    const msg = document.createElement("p");
-    msg.style.maxWidth = "480px";
-    msg.style.lineHeight = "1.5";
-    msg.innerHTML =
+    const p = document.createElement("p");
+    p.style.maxWidth = "560px";
+    p.style.lineHeight = "1.5";
+    p.innerHTML =
       "Your experiment is complete.<br><br>" +
-      "You can now save the results as a CSV file or copy them to use in Excel, SPSS, or other analysis tools.";
-    container.appendChild(msg);
+      "This download contains <b>trial rows</b> and <b>summary average rows</b> in ONE CSV.<br>" +
+      "Filter by <code>record_type</code>: <b>trial</b> vs <b>summary</b>.";
+    container.appendChild(p);
 
     const buttonRow = document.createElement("div");
     buttonRow.style.marginTop = "18px";
@@ -568,10 +658,8 @@
     buttonRow.appendChild(copyBtn);
     buttonRow.appendChild(downloadBtn);
     container.appendChild(buttonRow);
-
     document.body.appendChild(container);
 
-    // Hidden textarea for copy (not shown on screen)
     const hiddenTextarea = document.createElement("textarea");
     hiddenTextarea.style.position = "fixed";
     hiddenTextarea.style.opacity = "0";
@@ -581,7 +669,7 @@
 
     copyBtn.addEventListener("click", () => {
       hiddenTextarea.select();
-      hiddenTextarea.setSelectionRange(0, 999999); // iOS support
+      hiddenTextarea.setSelectionRange(0, 999999);
       const ok = document.execCommand("copy");
       alert(ok ? "CSV copied to clipboard." : "Unable to copy CSV. Please try selecting manually.");
     });
@@ -591,7 +679,8 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Firefly_Garden_${participantId || "data"}.csv`;
+      const safeId = (participantId || "data").replace(/[^a-zA-Z0-9_-]/g, "");
+      a.download = `Firefly_Garden_${safeId}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

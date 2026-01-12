@@ -33,10 +33,7 @@
       box-sizing: border-box;
     }
 
-    #menu h1 {
-      font-size: 32px;
-      margin-bottom: 10px;
-    }
+    #menu h1 { font-size: 32px; margin: 0 0 10px 0; }
 
     #menu p {
       max-width: 650px;
@@ -166,15 +163,6 @@
   </div>
 
   <div class="menu-row">
-    <label for="handedness">Handedness:</label>
-    <select id="handedness" class="menu-input">
-      <option value="">Select</option>
-      <option value="Right">Right-handed</option>
-      <option value="Left">Left-handed</option>
-    </select>
-  </div>
-
-  <div class="menu-row">
     <label for="deviceMode">Device Mode:</label>
     <select id="deviceMode" class="menu-input">
       <option value="auto">Auto (detect mouse/touch)</option>
@@ -198,7 +186,7 @@
 
 <div id="ui">
   <div class="panel" id="infoParticipant">ID: - | Age: -</div>
-  <div class="panel" id="infoDemo">Gender: - | Hand: - | Group: -</div>
+  <div class="panel" id="infoDemo">Gender: -</div>
   <div class="panel" id="infoBlock">Block: -</div>
   <div class="panel" id="infoTrial">Trial: -/-</div>
   <div class="panel" id="infoMode">Mode: -</div>
@@ -230,9 +218,7 @@
 
   let participantId = "";
   let age = 0;
-  let ageGroup = "";
   let gender = "";
-  let handedness = "";
   let deviceMode = "auto";
   let numBlocks = 3;
   let trialsPerBlock = 12;
@@ -248,7 +234,7 @@
   let logs = [];
   let running = false;
 
-  // Prevent "ghost click" after touch on mobile
+  // Prevent "ghost click" after touch on mobile browsers
   let lastTouchTs = 0;
 
   // Sizes
@@ -279,14 +265,6 @@
   }
   window.addEventListener("resize", resizeCanvas);
 
-  function computeAgeGroup(a) {
-    // You can change bins later if lecturer requests
-    if (a >= 6 && a <= 8) return "6-8";
-    if (a >= 9 && a <= 10) return "9-10";
-    if (a >= 11 && a <= 12) return "11-12";
-    return "Other";
-  }
-
   function localTimeKL() {
     // LOCAL ONLY (Malaysia time)
     return new Date().toLocaleString("en-GB", {
@@ -299,7 +277,6 @@
     participantId = document.getElementById("pid").value.trim();
     age = parseInt(document.getElementById("age").value.trim(), 10);
     gender = document.getElementById("gender").value;
-    handedness = document.getElementById("handedness").value;
     deviceMode = document.getElementById("deviceMode").value;
     numBlocks = parseInt(document.getElementById("blocks").value, 10);
     trialsPerBlock = parseInt(document.getElementById("trialsPerBlock").value, 10);
@@ -307,11 +284,8 @@
     if (!participantId) return alert("Please enter Participant ID.");
     if (!age || isNaN(age)) return alert("Please enter a valid age.");
     if (!gender) return alert("Please select gender.");
-    if (!handedness) return alert("Please select handedness.");
     if (isNaN(numBlocks) || numBlocks < 1) return alert("Number of blocks must be at least 1.");
     if (isNaN(trialsPerBlock) || trialsPerBlock < 3) return alert("Trials per block must be at least 3.");
-
-    ageGroup = computeAgeGroup(age);
 
     totalTrials = numBlocks * trialsPerBlock;
     logs = [];
@@ -326,7 +300,7 @@
     resizeCanvas();
 
     infoParticipant.textContent = `ID: ${participantId} | Age: ${age}`;
-    infoDemo.textContent = `Gender: ${gender} | Hand: ${handedness} | Group: ${ageGroup}`;
+    infoDemo.textContent = `Gender: ${gender}`;
     infoMode.textContent = `Mode: ${deviceMode.toUpperCase()}`;
     infoDetected.textContent = `Detected: -`;
     updateUI();
@@ -453,14 +427,11 @@
     const ID = (W > 0) ? Math.log2((amplitude + W) / W) : 0; // Shannon
     const TP = (movementTimeMs > 0) ? (ID / (movementTimeMs / 1000.0)) : 0;
 
-    // Record TRIAL row
     logs.push({
       record_type: "trial",
       participantId,
       age,
-      ageGroup,
       gender,
-      handedness,
       deviceMode,
       deviceUsed: deviceType,
       block: currentBlock,
@@ -481,7 +452,6 @@
       local_timestamp_KL: localTimeKL()
     });
 
-    // Update movement start for next trial
     lastCenter = { x: firefly.x, y: firefly.y };
 
     if (hit) showMessage("Nice catch! ✨", 450);
@@ -517,8 +487,6 @@
     handleInput(x, y, "touch");
   }, { passive: false });
 
-  // ========= END SCREEN (thank you + 2 buttons) =========
-
   function finishExperiment() {
     running = false;
     showMessage("Experiment complete! Preparing CSV...", 1200);
@@ -526,7 +494,6 @@
   }
 
   function computeSummaries(trialRows) {
-    // Summary by deviceUsed + overall (still ONE CSV, via record_type)
     const groups = new Map();
 
     function add(key, row) {
@@ -556,9 +523,7 @@
         record_type: "summary",
         participantId,
         age,
-        ageGroup,
         gender,
-        handedness,
         deviceMode,
         deviceUsed,
         n_trials: g.n,
@@ -576,10 +541,11 @@
     const trials = logs.filter(r => r.record_type === "trial");
     const summaries = computeSummaries(trials);
 
-    // ONE CSV header that supports both trial + summary rows
+    // ✅ ONLY CHANGE vs previous working version: add row_id as left-most column
     const unifiedHeaders = [
+      "row_id",
       "record_type",
-      "participantId","age","ageGroup","gender","handedness",
+      "participantId","age","gender",
       "deviceMode","deviceUsed",
       "block","trialInBlock","globalTrialIndex",
       "startX","startY","targetX","targetY","clickX","clickY",
@@ -590,14 +556,22 @@
 
     function esc(v) {
       const s = (v === undefined || v === null) ? "" : String(v);
-      return (s.includes(",") || s.includes('"') || s.includes("\n"))
-        ? `"${s.replace(/"/g, '""')}"`
-        : s;
+      // Proper CSV escaping
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
     }
 
     let csv = unifiedHeaders.join(",") + "\n";
-    for (const r of trials) csv += unifiedHeaders.map(h => esc(r[h])).join(",") + "\n";
-    for (const s of summaries) csv += unifiedHeaders.map(h => esc(s[h])).join(",") + "\n";
+    let rowCounter = 1;
+
+    for (const r of trials) {
+      csv += unifiedHeaders.map(h => h === "row_id" ? rowCounter++ : esc(r[h])).join(",") + "\n";
+    }
+    for (const s of summaries) {
+      csv += unifiedHeaders.map(h => h === "row_id" ? rowCounter++ : esc(s[h])).join(",") + "\n";
+    }
 
     // Replace whole page with completion screen
     document.body.innerHTML = "";
@@ -660,6 +634,7 @@
     container.appendChild(buttonRow);
     document.body.appendChild(container);
 
+    // Hidden textarea for copy
     const hiddenTextarea = document.createElement("textarea");
     hiddenTextarea.style.position = "fixed";
     hiddenTextarea.style.opacity = "0";

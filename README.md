@@ -25,8 +25,7 @@ The experiment records trial-level interaction data and computes:
 ---
 
 ## How to Run
-Option 1 (Recommended):  
-Open the live system:  
+Option 1 (Recommended): Open the live system:  
 https://311justin.github.io/FireflyGarden/
 
 Option 2 (Offline):

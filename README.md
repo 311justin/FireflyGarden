@@ -55,7 +55,7 @@ Standard statistical functions and charts were used to compute averages, through
 ---
 
 ## Reproducibility
-All source code and anonymizsed datasets are provided in this repository.  
+All source code and anonymised datasets are provided in this repository.  
 The link will remain accessible for at least one year after submission.
 
 ---

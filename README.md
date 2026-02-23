@@ -1,5 +1,6 @@
 # Firefly Garden Experiment System  
 Project ID: T812940
+
 Project Title: Child–Computer Interaction Using Fitts’ Law: Mouse and Touch
 
 Student Name: Justin Tan Jin You
